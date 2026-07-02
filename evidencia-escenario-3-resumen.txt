@@ -1,0 +1,14 @@
+Escenario 3 - Balance 50/50
+URL: http://136.68.201.159
+
+Variables usadas:
+project_id = "project-c7fb6348-b503-457f-a32"
+
+main_traffic_weight        = 50
+contingency_traffic_weight = 50
+
+Resultados:
+Servicio Principal:
+48
+Servicio de Contingencia:
+52
