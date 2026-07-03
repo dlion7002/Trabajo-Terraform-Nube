@@ -118,14 +118,16 @@ done
 
 ## Evidencias
 
-Archivos generados durante las pruebas de verificación:
+Todos los archivos de evidencia están en la carpeta `evidencias/`.
 
-| Archivo | Escenario |
+| Archivo | Contenido |
 |---|---|
-| `evidencia-escenario-1.txt` | 20 peticiones → 100 % Producción |
-| `evidencia-escenario-2.txt` | 10 peticiones → 100 % Contingencia |
-| `evidencia-escenario-3.txt` | 100 peticiones → distribución 50/50 |
-| `evidencia-escenario-3-resumen.txt` | Resumen de conteos del Escenario 3 |
+| `evidencias/evidencia-escenario-1.txt` | 20 peticiones → 100 % Producción |
+| `evidencias/evidencia-escenario-2.txt` | 10 peticiones → 100 % Contingencia |
+| `evidencias/evidencia-escenario-3.txt` | 100 peticiones → distribución 50/50 |
+| `evidencias/evidencia-escenario-3-resumen.txt` | Resumen de conteos del Escenario 3 |
+| `evidencias/evidencia-destroy1.png` | Captura de `terraform destroy` — inicio |
+| `evidencias/evidencia-destroy2.png` | Captura de `terraform destroy` — completado |
 
 ---
 
