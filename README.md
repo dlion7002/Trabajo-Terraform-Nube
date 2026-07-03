@@ -1,107 +1,144 @@
-# Proyecto Terraform - Balanceo de Trafico en GCP
+# Proyecto Terraform — Balanceo de Tráfico en GCP
 
-Este proyecto despliega una arquitectura en Google Cloud Platform usando Terraform. La infraestructura permite controlar el trafico HTTP hacia dos servicios independientes usando un unico punto de entrada publico.
+Infraestructura como código que despliega un balanceador HTTP global en Google
+Cloud Platform con dos servicios independientes. El tráfico se distribuye entre
+ambos servicios modificando únicamente dos variables en `terraform.tfvars`.
 
-## Arquitectura
+---
 
-La solucion crea:
+## Requisitos previos
 
-- Una red VPC personalizada.
-- Una subred regional.
-- Dos maquinas virtuales independientes:
-  - Servicio Principal.
-  - Servicio de Contingencia.
-- Dos grupos de instancias independientes.
-- Un balanceador HTTP externo global.
-- Una unica direccion IP publica.
-- Reglas de enrutamiento ponderado mediante variables de Terraform.
+- Terraform >= 1.6.0
+- Google Cloud SDK (`gcloud`) autenticado:
 
-Los usuarios solo acceden a la IP publica del balanceador. Las maquinas virtuales no tienen IP publica.
+```bash
+gcloud auth application-default login
+```
 
-## Servicios
+- Acceso IAM con rol **Editor** sobre el proyecto GCP indicado en `terraform.tfvars`.
 
-Servicio Principal:
+---
 
-    Bienvenido al Servicio Principal - Versión Producción
+## Despliegue inicial
 
-Servicio de Contingencia:
+```bash
+terraform init
+terraform apply
+```
 
-    Error 503 - Sitio en Mantenimiento Programado
+Cuando Terraform termine, ejecutar para obtener la URL pública:
 
-## Variables principales
+```bash
+terraform output -raw test_url
+```
 
-Las variables que controlan la distribucion de trafico estan en terraform.tfvars:
+El balanceador puede tardar entre 2 y 10 minutos en propagar tras el primer
+despliegue. Durante ese tiempo puede responder con `502` o `no healthy upstream`.
 
-    main_traffic_weight        = 100
-    contingency_traffic_weight = 0
+---
 
-La suma de ambas variables debe ser igual a 100.
+## Escenarios de evaluación
 
-## Escenarios de evaluacion
+El único archivo que se debe editar entre escenarios es `terraform.tfvars`.
+Después de cada cambio ejecutar `terraform apply`.
 
-Escenario 1 - Produccion activa:
+### Escenario 1 — Producción activa (100 % / 0 %)
 
-    project_id = "project-c7fb6348-b503-457f-a32"
-    main_traffic_weight        = 100
-    contingency_traffic_weight = 0
+Editar `terraform.tfvars`:
 
-Escenario 2 - Mantenimiento total:
+```hcl
+main_traffic_weight        = 100
+contingency_traffic_weight = 0
+```
 
-    project_id = "project-c7fb6348-b503-457f-a32"
-    main_traffic_weight        = 0
-    contingency_traffic_weight = 100
+```bash
+terraform apply
+```
 
-Escenario 3 - Balance 50/50:
+**Resultado esperado:** todas las peticiones muestran:
 
-    project_id = "project-c7fb6348-b503-457f-a32"
-    main_traffic_weight        = 50
-    contingency_traffic_weight = 50
+```
+Bienvenido al Servicio Principal - Versión Producción
+```
 
-Aplicar cambios:
+### Escenario 2 — Mantenimiento total (0 % / 100 %)
 
-    terraform apply
+Editar `terraform.tfvars`:
 
-Obtener URL:
+```hcl
+main_traffic_weight        = 0
+contingency_traffic_weight = 100
+```
 
-    terraform output -raw test_url
+```bash
+terraform apply
+```
 
-Probar:
+**Resultado esperado:** todas las peticiones muestran:
 
-    URL=$(terraform output -raw test_url)
+```
+Error 503 - Sitio en Mantenimiento Programado
+```
 
-    for i in {1..30}; do
-      curl -s -H "Cache-Control: no-cache" "$URL?request=$(date +%s%N)-$i" | grep -E "Bienvenido|Error 503"
-    done
+### Escenario 3 — Balance equitativo (50 % / 50 %)
+
+Editar `terraform.tfvars`:
+
+```hcl
+main_traffic_weight        = 50
+contingency_traffic_weight = 50
+```
+
+```bash
+terraform apply
+```
+
+**Resultado esperado:** peticiones consecutivas alternan entre ambos servicios.
+La distribución es aproximada; una muestra de 100 peticiones suele dar entre
+40/60 y 60/40 debido a varianza estadística normal.
+
+> **Regla:** `main_traffic_weight + contingency_traffic_weight` debe ser
+> siempre igual a 100. El código lo valida y falla con un error claro si no
+> se cumple.
+
+---
+
+## Verificar la distribución de tráfico
+
+```bash
+IP=$(terraform output -raw load_balancer_ip)
+
+for i in $(seq 1 30); do
+  curl -s -H "Cache-Control: no-cache" "http://$IP/?r=$(date +%s%N)-$i" \
+    | grep -oE "Bienvenido al Servicio Principal|Error 503"
+done
+```
+
+---
 
 ## Evidencias
 
-Durante las pruebas se generaron archivos de evidencia:
+Archivos generados durante las pruebas de verificación:
 
-- evidencia-escenario-2.txt
-- evidencia-escenario-3.txt
-- evidencia-escenario-3-resumen.txt
+| Archivo | Escenario |
+|---|---|
+| `evidencia-escenario-1.txt` | 20 peticiones → 100 % Producción |
+| `evidencia-escenario-2.txt` | 10 peticiones → 100 % Contingencia |
+| `evidencia-escenario-3.txt` | 100 peticiones → distribución 50/50 |
+| `evidencia-escenario-3-resumen.txt` | Resumen de conteos del Escenario 3 |
 
-## Limpieza de recursos
+---
 
-Es obligatorio destruir los recursos despues de las pruebas para evitar costos y conflictos durante la revision.
+## Limpieza obligatoria
 
-    terraform destroy
+Antes de la revisión, destruir todos los recursos:
 
-Cuando Terraform solicite confirmacion, escribir:
+```bash
+terraform destroy
+```
 
-    yes
+Escribir `yes` cuando Terraform lo solicite.
 
-Guardar captura de pantalla del resultado exitoso de terraform destroy.
-
-## Antes de entregar
-
-Ejecutar:
-
-    terraform fmt
-    terraform validate
-
-El repositorio no debe incluir:
-
-- .terraform/
-- terraform.tfstate
-- terraform.tfstate.backup
+La consola de GCP debe quedar sin ningún recurso de este proyecto. Si quedan
+recursos activos, el script de revisión automatizada intenta crearlos de nuevo
+y falla por conflicto de nombres, lo que invalida la entrega.
